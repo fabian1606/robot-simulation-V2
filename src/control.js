@@ -176,16 +176,35 @@ async function readSerialData() {
       
       for (let line of lines) {
         const data = line.trim().toLowerCase();
-        if (data && ['w','a','s','d','q','e','r','f','t','g'].includes(data)) {
+        // Prüfen auf Rotationsbefehl
+        if (data.startsWith('rot:')) {
+          const angle = parseFloat(data.substring(4));
+          if (!isNaN(angle)) {
+            console.log('Empfangen Rotation:', angle);
+            rotation = angle;
+          }
+        }
+        // Standard Bewegungsbefehle
+        else if (data && ['w','a','s','d','q','e','r','f','t','g'].includes(data)) {
           console.log('Empfangen:', data);
           handleSerialCommand(data);
         }
       }
       
-      // Auch einzelne Zeichen ohne Zeilenumbruch verarbeiten
+      // Auch einzelne Zeichen oder Befehle ohne Zeilenumbruch verarbeiten
       if (serialBuffer.length > 0) {
         const data = serialBuffer.trim().toLowerCase();
-        if (['w','a','s','d','q','e','r','f','t','g'].includes(data)) {
+        if (data.startsWith('rot:')) {
+          const angle = parseFloat(data.substring(4));
+          if (!isNaN(angle)) {
+            console.log('Empfangen Rotation (ohne \\n):', angle);
+            rotation = angle*-1;
+            updateCarPosition();
+            car.style.transform = `rotate(${rotation}deg)`;
+            serialBuffer = ''; // Buffer leeren nach Verarbeitung
+          }
+        }
+        else if (['w','a','s','d','q','e','r','f','t','g'].includes(data)) {
           console.log('Empfangen (ohne \\n):', data);
           handleSerialCommand(data);
           serialBuffer = ''; // Buffer leeren nach Verarbeitung
@@ -248,6 +267,12 @@ function updateArm() {
   fingerR.style.transform = `rotate(${rotateR}deg) translateX(${translateX}px)`;
 }
 
+function updateCarPosition() {
+  car.style.left = carX + 'px';
+  car.style.top = carY + 'px';
+  car.style.transform = `rotate(${rotation}deg)`;
+}
+
 function moveCar(direction) {
   const rad = degToRad(rotation);
   let dx = 0, dy = 0;
@@ -281,9 +306,8 @@ function moveCar(direction) {
   carY = Math.min(window.innerHeight - car.offsetHeight, Math.max(0, carY));
 
   // Position und Rotation des Autos setzen
-  car.style.left = carX + 'px';
-  car.style.top = carY + 'px';
-  car.style.transform = `rotate(${rotation}deg)`;
+
+  updateCarPosition();
 }
 
 function controlLoop() {
