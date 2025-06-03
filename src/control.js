@@ -80,7 +80,7 @@ async function connectSerial() {
   try {
     // WebSerial API verfügbar prüfen
     if (!('serial' in navigator)) {
-      alert('WebSerial wird von diesem Browser nicht unterstützt!');
+      alert('WebSerial wird von diesem Browser nicht unterstützt! infos zu unterstützten browsern unter:https://developer.mozilla.org/en-US/docs/Web/API/Web_Serial_API#browser_compatibility');
       return false;
     }
 
