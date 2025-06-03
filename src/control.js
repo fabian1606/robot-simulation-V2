@@ -60,10 +60,10 @@ function updateBallPosition() {
 let carX = (window.innerWidth - 50) / 2;
 let carY = (window.innerHeight - 150) / 2;
 let rotation = 0;
-const step = 1; // Geschwindigkeit der Bewegung verringert
+const step = 3; // Geschwindigkeit der Bewegung verringert
 
 let armHeight = 80;
-const armMin = 20, armMax = 200;
+const armMin = 20, armMax = 80;
 
 let gripperOpenAmount = 0; // 0 = geschlossen, 1 = vollständig geöffnet
 
@@ -301,12 +301,12 @@ function moveCar(direction) {
       dy = Math.cos(rad) * step;
       break;
     case 'q': // links drehen - nur Rotation
-      rotation -= step; // Rotation ohne Vorwärtsbewegung
+      rotation -= step/2; // Rotation ohne Vorwärtsbewegung
       dx = 0;
       dy = 0;
       break;
     case 'e': // rechts drehen - nur Rotation
-      rotation += step; // Rotation ohne Vorwärtsbewegung
+      rotation += step/2; // Rotation ohne Vorwärtsbewegung	
       dx = 0;
       dy = 0;
       break;
