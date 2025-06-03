@@ -4,16 +4,30 @@ const fingerL = document.getElementById('fingerL');
 const fingerR = document.getElementById('fingerR');
 const ballsContainer = document.getElementById('balls-container');
 let grabbedBall = null;
+let possibleGrabbedBall = null;
+
+
+class Ball {
+    constructor(parent) {
+        this.element = document.createElement('div');
+        this.element.className = 'ball';
+        this.element.style.left = Math.random() * (parent.clientWidth - 30) + 'px';
+        this.element.style.top = Math.random() * (parent.clientHeight - 30) + 'px';
+        this.element.style.backgroundColor = "green";
+        parent.appendChild(this.element);
+    }
+  }
 
 function isArmOverBall() {
     const armRect = arm.getBoundingClientRect();
     const fingerLRect = fingerL.getBoundingClientRect();
     const fingerRRect = fingerR.getBoundingClientRect();
-    const balls = document.querySelectorAll('.ball:not(.grabbed)');
-    
+    const balls = document.querySelectorAll('.ball');
+
     // Calculate the center point between the fingers at their tips
-    const gripperTipX = (fingerLRect.right + fingerRRect.left) / 2;
-    const gripperTipY = Math.max(fingerLRect.bottom, fingerRRect.bottom);
+    const gripperTipX = ((fingerLRect.left + fingerLRect.width/2) + (fingerRRect.left + fingerRRect.width/2)) / 2;
+    const gripperTipY = ((fingerLRect.top + fingerLRect.height/2) + (fingerRRect.top + fingerRRect.height/2)) / 2;
+
     
     for (const ball of balls) {
         const ballRect = ball.getBoundingClientRect();
@@ -35,8 +49,8 @@ function updateBallPosition() {
         const fingerRRect = fingerR.getBoundingClientRect();
         
         // Position the ball between the finger tips
-        const gripperTipX = (fingerLRect.right + fingerRRect.left) / 2;
-        const gripperTipY = Math.max(fingerLRect.bottom, fingerRRect.bottom);
+        const gripperTipX = ((fingerLRect.left + fingerLRect.width/2) + (fingerRRect.left + fingerRRect.width/2)) / 2;
+        const gripperTipY = ((fingerLRect.top + fingerLRect.height/2) + (fingerRRect.top + fingerRRect.height/2)) / 2;
         
         grabbedBall.style.left = (gripperTipX - 15) + 'px';
         grabbedBall.style.top = (gripperTipY - 15) + 'px';
@@ -177,11 +191,12 @@ async function readSerialData() {
       for (let line of lines) {
         const data = line.trim().toLowerCase();
         // Prüfen auf Rotationsbefehl
-        if (data.startsWith('rot:')) {
-          const angle = parseFloat(data.substring(4));
+        if (data.startsWith('#:')) {
+          const angle = parseFloat(data.substring(2));
           if (!isNaN(angle)) {
             console.log('Empfangen Rotation:', angle);
             rotation = angle;
+            car.style.transform = `rotate(${rotation}deg)`;
           }
         }
         // Standard Bewegungsbefehle
@@ -192,15 +207,14 @@ async function readSerialData() {
       }
       
       // Auch einzelne Zeichen oder Befehle ohne Zeilenumbruch verarbeiten
-      if (serialBuffer.length > 0) {
+      if (serialBuffer.length > 0 && !serialBuffer.startsWith('#:')) {
         const data = serialBuffer.trim().toLowerCase();
-        if (data.startsWith('rot:')) {
-          const angle = parseFloat(data.substring(4));
+        if (data.startsWith('#:')) {
+          const angle = parseFloat(data.substring(2));
           if (!isNaN(angle)) {
             console.log('Empfangen Rotation (ohne \\n):', angle);
             rotation = angle*-1;
             updateCarPosition();
-            car.style.transform = `rotate(${rotation}deg)`;
             serialBuffer = ''; // Buffer leeren nach Verarbeitung
           }
         }
@@ -313,21 +327,33 @@ function moveCar(direction) {
 function controlLoop() {
     let changed = false;
     
+    const ballToGrab = isArmOverBall();
     // Ball grabbing logic
     if (gripperOpenAmount > 0.7) {  // Gripper is open enough to grab
-        if (!grabbedBall) {
-            const ballToGrab = isArmOverBall();
             if (ballToGrab) {
-                ballToGrab.classList.add('grabbed');
-                grabbedBall = ballToGrab;
+              possibleGrabbedBall = ballToGrab;
+              ballToGrab.style.backgroundColor = 'red'; // Highlight the ball to grab
+             ballToGrab.classList.remove('grabbed'); // Ensure it's not marked as grabbed
+                // ballToGrab.classList.add('grabbed');
+                grabbedBall = null;
             }
-        }
+            else{
+              possibleGrabbedBall = null; // No ball to grab
+            }
     } else if (gripperOpenAmount < 0.3) {  // Gripper is closing
-        if (grabbedBall) {
-            grabbedBall.classList.remove('grabbed');
-            grabbedBall = null;
+        if(!grabbedBall){
+          if (ballToGrab && possibleGrabbedBall) {
+            grabbedBall = possibleGrabbedBall;
+            grabbedBall.classList.add('grabbed');
+          }
         }
     }
+
+    ballsContainer.querySelectorAll('.ball').forEach(ball => {
+        if (ball !== possibleGrabbedBall) {
+            ball.style.backgroundColor = 'green'; // Reset color for other balls
+        } 
+      });
     
     if (grabbedBall) {
         updateBallPosition();
@@ -376,6 +402,10 @@ function controlLoop() {
   }
 
   requestAnimationFrame(controlLoop);
+}
+
+for (let i = 0; i < 10; i++) {
+    new Ball(ballsContainer);
 }
 
 // Make connectSerial and disconnectSerial globally available for buttons
