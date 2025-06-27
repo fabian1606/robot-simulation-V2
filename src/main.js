@@ -1,25 +1,70 @@
+// Referenzen auf die Hauptelemente des Autos und Greifarms
 const car = document.getElementById('car');
 const arm = document.getElementById('arm');
-
+const wrist = document.getElementById('wrist');
 const fingerL = document.getElementById('fingerL');
 const fingerR = document.getElementById('fingerR');
 
+// Referenzen auf die vier Räder
+const wheel1 = document.getElementById('wheel1');
+const wheel2 = document.getElementById('wheel2');
+const wheel3 = document.getElementById('wheel3');
+const wheel4 = document.getElementById('wheel4');
+
+// Ball functionality
 const ballsContainer = document.getElementById('balls-container');
 let grabbedBall = null;
 let possibleGrabbedBall = null;
 
+// Car dimensions and positioning
+const carWidth = 127.804;   // 182.577 * 0.7
+const carHeight = 197.087;  // 281.553 * 0.7
 
+let carX = (window.innerWidth - carWidth) / 2;
+let carY = (window.innerHeight - carHeight) / 2;
+let rotation = 0;
+
+// Separate Geschwindigkeitsvariablen
+let movementSpeed = 2; // Bewegungsgeschwindigkeit
+let rotationSpeed = 0.5; // Rotationsgeschwindigkeit
+
+// Armhöhe (Steuerung des Arms)
+let armHeight = 217.883;    // 311.262 * 0.7
+const armMin = 14, armMax = 217.883; // 20*0.7, 311.262*0.7
+let gripperOpenAmount = 0; // Öffnungsgrad des Greifers (0 = zu, 1 = maximal offen)
+let keysPressed = {}; // Merkt gedrückte Tasten
+
+// Basiswerte für Arm und Handgelenk (Positionierung)
+const armBaseHeight = 217.883;       // 311.262 * 0.7
+const wristBaseHeight = 53.785;      // 76.836 * 0.7
+const wristBaseWidth = 59.336;       // 84.765 * 0.7
+const wristOffsetY = -42.736;        // -61.051 * 0.7
+const wristOffsetX = -5.431;         // -7.044 * 0.7
+const fingerL_X = -31.732;           // -45.332 * 0.7
+const fingerR_X = 44.672;            // 65.245 * 0.7
+const fingerY = -169.867;            // -240.239 * 0.7
+
+// WebSerial-Variablen
+let port = null;
+let reader = null;
+let writer = null;
+let serialConnected = false;
+let serialBuffer = '';
+let serialCommandTimers = {};
+
+// Ball class
 class Ball {
     constructor(parent) {
         this.element = document.createElement('div');
         this.element.className = 'ball';
-        this.element.style.left = Math.random() * (parent.clientWidth - 30) + 'px';
-        this.element.style.top = Math.random() * (parent.clientHeight - 30) + 'px';
+        this.element.style.left = Math.random() * (parent.clientWidth - 80) + 'px';
+        this.element.style.top = Math.random() * (parent.clientHeight - 80) + 'px';
         this.element.style.backgroundColor = "green";
         parent.appendChild(this.element);
     }
-  }
+}
 
+// Ball detection functions
 function isArmOverBall() {
     const armRect = arm.getBoundingClientRect();
     const fingerLRect = fingerL.getBoundingClientRect();
@@ -30,15 +75,14 @@ function isArmOverBall() {
     const gripperTipX = ((fingerLRect.left + fingerLRect.width/2) + (fingerRRect.left + fingerRRect.width/2)) / 2;
     const gripperTipY = ((fingerLRect.top + fingerLRect.height/2) + (fingerRRect.top + fingerRRect.height/2)) / 2;
 
-    
     for (const ball of balls) {
         const ballRect = ball.getBoundingClientRect();
         const ballCenterX = ballRect.left + ballRect.width/2;
         const ballCenterY = ballRect.top + ballRect.height/2;
         
-        // Check if gripper tip is near the ball
-        if (Math.abs(gripperTipX - ballCenterX) < 20 &&
-            Math.abs(gripperTipY - ballCenterY) < 20) {
+        // Check if gripper tip is near the ball (increased radius for larger balls)
+        if (Math.abs(gripperTipX - ballCenterX) < 50 &&
+            Math.abs(gripperTipY - ballCenterY) < 50) {
             return ball;
         }
     }
@@ -54,28 +98,11 @@ function updateBallPosition() {
         const gripperTipX = ((fingerLRect.left + fingerLRect.width/2) + (fingerRRect.left + fingerRRect.width/2)) / 2;
         const gripperTipY = ((fingerLRect.top + fingerLRect.height/2) + (fingerRRect.top + fingerRRect.height/2)) / 2;
         
-        grabbedBall.style.left = (gripperTipX - 15) + 'px';
-        grabbedBall.style.top = (gripperTipY - 15) + 'px';
+        // Center the 80x80px ball on the gripper tip (40px offset for centering)
+        grabbedBall.style.left = (gripperTipX - 40) + 'px';
+        grabbedBall.style.top = (gripperTipY - 40) + 'px';
     }
 }
-
-let carX = (window.innerWidth - 50) / 2;
-let carY = (window.innerHeight - 150) / 2;
-let rotation = 0;
-const step = 3; // Geschwindigkeit der Bewegung verringert
-
-let armHeight = 80;
-const armMin = 20, armMax = 80;
-
-let gripperOpenAmount = 0; // 0 = geschlossen, 1 = vollständig geöffnet
-
-let keysPressed = {};
-
-// WebSerial-Variablen
-let port = null;
-let reader = null;
-let writer = null;
-let serialConnected = false;
 
 // WebSerial-Funktionen
 async function connectSerial() {
@@ -173,10 +200,6 @@ function updateSerialStatus() {
   if (disconnectBtn) disconnectBtn.disabled = !serialConnected;
 }
 
-// Buffer für eingehende Daten
-let serialBuffer = '';
-let serialCommandTimers = {};
-
 async function readSerialData() {
   try {
     while (serialConnected && reader) {
@@ -198,7 +221,7 @@ async function readSerialData() {
           if (!isNaN(angle)) {
             console.log('Empfangen Rotation:', angle);
             rotation = angle;
-            car.style.transform = `rotate(${rotation}deg)`;
+            updateCarPosition();
           }
         }
         // Standard Bewegungsbefehle
@@ -260,15 +283,34 @@ async function sendSerialData(data) {
   }
 }
 
+// Hilfsfunktion: Grad in Radiant umrechnen
 function degToRad(deg) {
   return deg * Math.PI / 180;
 }
 
+// Aktualisiert die Position und Darstellung des Arms und Greifers
 function updateArm() {
-  // Armlänge setzen
+  // 1. Der Arm wird von unten nach oben skaliert (bottom bleibt fixiert, Höhe verändert sich)
   arm.style.height = armHeight + 'px';
-  arm.style.top = -armHeight + 'px';
+  arm.style.bottom = '0px';
+  arm.style.top = ''; // top zurücksetzen, um Konflikte zu vermeiden
 
+  // Berechnet die obere Kante des Arms relativ zum Auto-Container
+  const armTop = carHeight - armHeight;
+
+  // 2. Das Handgelenk folgt der Armspitze, bleibt aber in der Größe konstant
+  wrist.style.left = wristOffsetX + 'px';
+  wrist.style.top = (armTop + wristOffsetY) + 'px';
+  wrist.style.height = wristBaseHeight + 'px';
+  wrist.style.width = wristBaseWidth + 'px';
+
+  // 3. Die Greiferfinger folgen ebenfalls der Armspitze, bleiben aber in der Größe konstant
+  fingerL.style.left = fingerL_X + 'px';
+  fingerL.style.top = (armTop + fingerY) + 'px';
+  fingerR.style.left = fingerR_X + 'px';
+  fingerR.style.top = (armTop + fingerY) + 'px';
+
+  // 4. Animation für das Öffnen und Schließen der Greiferfinger
   // Maximaler Winkel und maximale Verschiebung der Greiferfinger
   const maxRotate = 30; // maximale Rotationswinkel
   const maxTranslate = 10; // maximale Verschiebung in Pixel
@@ -289,34 +331,36 @@ function updateCarPosition() {
   car.style.transform = `rotate(${rotation}deg)`;
 }
 
+
+// Bewegt das Auto in die gewünschte Richtung
 function moveCar(direction) {
   const rad = degToRad(rotation);
   let dx = 0, dy = 0;
 
   switch (direction) {
     case 'w': // vorwärts
-      dx = Math.sin(rad) * step;
-      dy = -Math.cos(rad) * step;
+      dx = Math.sin(rad) * movementSpeed;
+      dy = -Math.cos(rad) * movementSpeed;
       break;
     case 's': // rückwärts
-      dx = -Math.sin(rad) * step;
-      dy = Math.cos(rad) * step;
+      dx = -Math.sin(rad) * movementSpeed;
+      dy = Math.cos(rad) * movementSpeed;
       break;
     case 'a': // links seitlich (relativ zur Roboterausrichtung)
-      dx = -Math.cos(rad) * step;
-      dy = -Math.sin(rad) * step;
+      dx = -Math.cos(rad) * movementSpeed;
+      dy = -Math.sin(rad) * movementSpeed;
       break;
     case 'd': // rechts seitlich (relativ zur Roboterausrichtung)
-      dx = Math.cos(rad) * step;
-      dy = Math.sin(rad) * step;
+      dx = Math.cos(rad) * movementSpeed;
+      dy = Math.sin(rad) * movementSpeed;
       break;
     case 'q': // links drehen - nur Rotation
-      rotation -= step/2; // Rotation ohne Vorwärtsbewegung
+      rotation -= rotationSpeed;
       dx = 0;
       dy = 0;
       break;
     case 'e': // rechts drehen - nur Rotation
-      rotation += step/2; // Rotation ohne Vorwärtsbewegung
+      rotation += rotationSpeed;
       dx = 0;
       dy = 0;
       break;
@@ -326,36 +370,35 @@ function moveCar(direction) {
   carY += dy;
 
   // Begrenzung innerhalb des Fensters
-  carX = Math.min(window.innerWidth - car.offsetWidth, Math.max(0, carX));
-  carY = Math.min(window.innerHeight - car.offsetHeight, Math.max(0, carY));
+  carX = Math.min(window.innerWidth - carWidth, Math.max(0, carX));
+  carY = Math.min(window.innerHeight - carHeight, Math.max(0, carY));
 
   // Position und Rotation des Autos setzen
-
   updateCarPosition();
 }
 
+// Hauptsteuerungsschleife: prüft gedrückte Tasten und aktualisiert Positionen/Animationen
 function controlLoop() {
     let changed = false;
     
     const ballToGrab = isArmOverBall();
+    
     // Ball grabbing logic
     if (gripperOpenAmount > 0.7) {  // Gripper is open enough to grab
-            if (ballToGrab) {
-              possibleGrabbedBall = ballToGrab;
-              ballToGrab.style.backgroundColor = 'red'; // Highlight the ball to grab
-             ballToGrab.classList.remove('grabbed'); // Ensure it's not marked as grabbed
-                // ballToGrab.classList.add('grabbed');
-                grabbedBall = null;
-            }
-            else{
-              possibleGrabbedBall = null; // No ball to grab
-            }
+        if (ballToGrab) {
+            possibleGrabbedBall = ballToGrab;
+            ballToGrab.style.backgroundColor = 'red'; // Highlight the ball to grab
+            ballToGrab.classList.remove('grabbed'); // Ensure it's not marked as grabbed
+            grabbedBall = null;
+        } else {
+            possibleGrabbedBall = null; // No ball to grab
+        }
     } else if (gripperOpenAmount < 0.3) {  // Gripper is closing
-        if(!grabbedBall){
-          if (ballToGrab && possibleGrabbedBall) {
-            grabbedBall = possibleGrabbedBall;
-            grabbedBall.classList.add('grabbed');
-          }
+        if (!grabbedBall) {
+            if (ballToGrab && possibleGrabbedBall) {
+                grabbedBall = possibleGrabbedBall;
+                grabbedBall.classList.add('grabbed');
+            }
         }
     }
 
@@ -363,46 +406,47 @@ function controlLoop() {
         if (ball !== possibleGrabbedBall) {
             ball.style.backgroundColor = 'green'; // Reset color for other balls
         } 
-      });
+    });
     
     if (grabbedBall) {
         updateBallPosition();
     }
 
-  // Armhöhe steuern mit R und F
-  if (keysPressed['r']) {
-    const prev = armHeight;
-    armHeight = Math.max(armMin, armHeight - 0.5);
-    changed ||= (prev !== armHeight);
-  }
-  if (keysPressed['f']) {
-    const prev = armHeight;
-    armHeight = Math.min(armMax, armHeight + 0.5);
-    changed ||= (prev !== armHeight);
-  }
-  if (changed) updateArm();
+    // Armhöhe steuern mit R und F
+    if (keysPressed['r']) {
+        const prev = armHeight;
+        armHeight = Math.max(armMin, armHeight - 0.5);
+        changed ||= (prev !== armHeight);
+    }
+    if (keysPressed['f']) {
+        const prev = armHeight;
+        armHeight = Math.min(armMax, armHeight + 0.5);
+        changed ||= (prev !== armHeight);
+    }
+    if (changed) updateArm();
 
-  // Greifer langsam öffnen/schließen mit T und G
-  if (keysPressed['t']) {
-    gripperOpenAmount += 0.02; // Geschwindigkeit des Öffnens (langsamer)
-    if (gripperOpenAmount > 1) gripperOpenAmount = 1;
-  }
-  if (keysPressed['g']) {
-    gripperOpenAmount -= 0.02; // Geschwindigkeit des Schließens (langsamer)
-    if (gripperOpenAmount < 0) gripperOpenAmount = 0;
-  }
+    // Greifer langsam öffnen/schließen mit T und G
+    if (keysPressed['t']) {
+        gripperOpenAmount += 0.02; // Geschwindigkeit des Öffnens (langsamer)
+        if (gripperOpenAmount > 1) gripperOpenAmount = 1;
+    }
+    if (keysPressed['g']) {
+        gripperOpenAmount -= 0.02; // Geschwindigkeit des Schließens (langsamer)
+        if (gripperOpenAmount < 0) gripperOpenAmount = 0;
+    }
 
-  updateArm();
+    updateArm();
 
-  // Bewegung und Rotation des Autos (inkl. Seitwärtsbewegung)
-  ['w', 's', 'a', 'd', 'q', 'e'].forEach(key => {
-    if (keysPressed[key]) moveCar(key);
-  });
+    // Bewegung und Rotation des Autos (inkl. Seitwärtsbewegung)
+    ['w', 's', 'a', 'd', 'q', 'e'].forEach(key => {
+        if (keysPressed[key]) moveCar(key);
+    });
 
-  requestAnimationFrame(controlLoop);
+    requestAnimationFrame(controlLoop);
 }
 
-for (let i = 0; i < 10; i++) {
+// Create balls
+for (let i = 0; i < 3; i++) {
     new Ball(ballsContainer);
 }
 
@@ -410,7 +454,7 @@ for (let i = 0; i < 10; i++) {
 window.connectSerial = connectSerial;
 window.disconnectSerial = disconnectSerial;
 
-// Event listeners
+// Tastendruck-Handler: merkt gedrückte Steuerungstasten
 document.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
   if (['w','a','s','d','q','e','r','f','t','g'].includes(key)) {
@@ -420,6 +464,7 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// Tastenloslassen-Handler: setzt gedrückte Tasten zurück
 document.addEventListener('keyup', e => {
   const key = e.key.toLowerCase();
   if (['w','a','s','d','q','e','r','f','t','g'].includes(key)) {
@@ -428,27 +473,56 @@ document.addEventListener('keyup', e => {
   }
 });
 
+// Geschwindigkeitssteuerung mit Slidern
+function updateSpeedControls() {
+  const movementSlider = document.getElementById('movementSpeed');
+  const rotationSlider = document.getElementById('rotationSpeed');
+  const movementSpeedValue = document.getElementById('movementSpeedValue');
+  const rotationSpeedValue = document.getElementById('rotationSpeedValue');
+
+  if (movementSlider) {
+    movementSlider.addEventListener('input', (e) => {
+      movementSpeed = parseFloat(e.target.value);
+      if (movementSpeedValue) {
+        movementSpeedValue.textContent = movementSpeed;
+      }
+    });
+  }
+
+  if (rotationSlider) {
+    rotationSlider.addEventListener('input', (e) => {
+      rotationSpeed = parseFloat(e.target.value);
+      if (rotationSpeedValue) {
+        rotationSpeedValue.textContent = rotationSpeed;
+      }
+    });
+  }
+}
+
 // Ensure the page can receive focus for keyboard events
 document.addEventListener('DOMContentLoaded', () => {
   document.body.tabIndex = 0;
   document.body.focus();
   console.log('Robot simulation loaded - keyboard controls ready');
+  updateSerialStatus();
+  updateSpeedControls();
 });
 
 window.addEventListener('beforeunload', () => {
   disconnectSerial();
 });
 
-// Set initial values
-car.style.left = carX + 'px';
-car.style.top = carY + 'px';
-car.style.transform = `rotate(${rotation}deg)`;
+// Zentriert das Auto beim Start im Fenster
+function centerCar() {
+  carX = (window.innerWidth - carWidth) / 2;
+  carY = (window.innerHeight - carHeight) / 2;
+  car.style.left = carX + 'px';
+  car.style.top = carY + 'px';
+  car.style.transform = `rotate(${rotation}deg)`;
+}
+
+// Initialisierung: Auto zentrieren, Arm und Räder setzen, Steuerung und Animation starten
+centerCar();
 updateArm();
-
-// Set initial WebSerial status
-document.addEventListener('DOMContentLoaded', () => {
-  updateSerialStatus();
-});
-
-// Start the control loop
+controlLoop();
 controlLoop();
