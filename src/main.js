@@ -9,7 +9,8 @@ const fingerR = document.getElementById('fingerR');
 const wheel1 = document.getElementById('wheel1');
 const wheel2 = document.getElementById('wheel2');
 const wheel3 = document.getElementById('wheel3');
-const wheel4 = document.getElementById('wheel4');
+const wheel4 = document.getElementById('wheel4'); 
+// a change
 
 // Ball functionality
 const ballsContainer = document.getElementById('balls-container');
