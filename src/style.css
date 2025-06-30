@@ -1,0 +1,186 @@
+/* Stellt sicher, dass das gesamte Fenster für die Simulation genutzt wird */
+html, body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Schwarzer Hintergrund mit feinem grünen Gitter für die Simulation */
+body {
+  background-color: #000000;
+  background-image: 
+    linear-gradient(rgba(0, 255, 0, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 0, 0.1) 1px, transparent 1px);
+  background-size: 24px 24px;
+  font-family: sans-serif;
+}
+
+/* === Karosserie des Autos === */
+/* Positioniert das Auto absolut im Fenster, Größe wird durch das Bild bestimmt.
+   Die Zentrierung erfolgt per JavaScript. */
+#car {
+  position: absolute;
+  width: 127.804px;    /* 182.577 * 0.7 */
+  height: 197.087px;   /* 281.553 * 0.7 */
+  /* Zentrierung durch JS */
+  transform-origin: 25.17px 144.04px; /* Drehpunkt in der Mitte des Body-Elements */
+}
+
+/* Das Hauptbild der Karosserie, leicht nach links und unten verschoben */
+#body {
+  position: absolute;
+  left: -38.732px;     /* -55.332 * 0.7 */
+  top: 45.5px;         /* 65 * 0.7 */
+  width: 127.804px;    /* 182.577 * 0.7 */
+  height: 197.087px;   /* 281.553 * 0.7 */
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* (Optional, falls ein gesamtes Radbild verwendet wird) */
+#wheel {
+  position: absolute;
+  left: -72.332px;     /* -103.332 * 0.7 */
+  top: 21px;           /* 30 * 0.7 */
+  width: 195.402px;    /* 279.146 * 0.7 */
+  height: 251.140px;   /* 358.772 * 0.7 */
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Einzelne Räder: links/rechts und oben/unten positioniert */
+#wheel1, #wheel3 {
+  position: absolute;
+  left: -72.1px;       /* -103 * 0.7 */
+  width: 33.671px;     /* 48.101 * 0.7 */
+  height: 78.511px;    /* 112.159 * 0.7 */
+  pointer-events: none;
+  z-index: 1;
+}
+#wheel2, #wheel4 {
+  position: absolute;
+  left: 88.533px;      /* 126.476 * 0.7 */
+  width: 33.671px;     /* 48.101 * 0.7 */
+  height: 78.511px;    /* 112.159 * 0.7 */
+  pointer-events: none;
+  z-index: 1;
+}
+#wheel1, #wheel2 {
+  top: 16.1px;         /* 23 * 0.7 */
+}
+#wheel3, #wheel4 {
+  top: 194.6px;        /* 278 * 0.7 */
+}
+
+/* === Roboterarm === */
+/* Der Arm ist absolut positioniert, wächst von unten nach oben */
+#arm {
+  position: absolute;
+  left: -0.031px;      /* -0.044 * 0.7 */
+  width: 49.287px;     /* 70.41 * 0.7 */
+  height: 217.883px;   /* 311.262 * 0.7 */
+  bottom: -14px;       /* -20 * 0.7 */
+  z-index: 3;
+  pointer-events: none;
+  transition: height 0.1s, top 0.1s;
+}
+
+/* Das Handgelenk folgt der Armspitze, bleibt aber in der Größe konstant */
+#wrist {
+  position: absolute;
+  left: -0.031px;      /* -0.044 * 0.7 */
+  top: -49.736px;      /* -71.051 * 0.7 */
+  width: 41.575px;     /* 59.336 * 0.7 */
+  height: 37.649px;    /* 53.785 * 0.7 */
+  z-index: 4;
+  pointer-events: none;
+  transition: height 0.1s, top 0.1s;
+}
+
+/* Die Greiferfinger sind absolut positioniert und werden animiert geöffnet/geschlossen */
+#fingerL, 
+#fingerR {
+  position: absolute;
+  width: 35.529px;     /* 50.756 * 0.7 */
+  height: 136.141px;   /* 194.487 * 0.7 */
+  top: -275.967px;     /* -394.239 * 0.7 */
+  pointer-events: none;
+  z-index: 5;
+  transition: transform 0.1s;
+}
+
+/* Linker Greiferfinger, Drehpunkt unten rechts */
+#fingerL {
+  left: -31.732px;     /* -45.332 * 0.7 */
+  transform-origin: 88.8% 97.0%;
+}
+
+/* Rechter Greiferfinger, Drehpunkt unten links */
+#fingerR {
+  left: 45.672px;      /* 65.245 * 0.7 */
+  transform-origin: 21.2% 97.0%;
+}
+
+/* === Informationspanel === */
+/* Zeigt die Steuerungsanleitung unten links im Fenster an */
+#info {
+  position: fixed;
+  bottom: 10px;
+  left: 10px;
+  /* Hintergrund und Transparenz können bei Bedarf aktiviert werden */
+  padding: 10px;
+  font-size: 14px;
+  color: #8CE87C;
+  border-radius: 5px;
+  /* Schatten und Zeilenhöhe optional */
+  z-index: 10;
+}
+
+/* === Balls === */
+/* Container für die Bälle */
+#balls-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Einzelne Bälle */
+.ball {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background-color: green;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ball.grabbed {
+  background-color: orange;
+}
+
+/* === Speed Control Styling === */
+/* Container for each speed control group */
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-top: 4px;
+}
+
+.speed-control input[type="range"] {
+  flex: 1;
+}
+
+.speed-control span {
+  min-width: 30px;
+  text-align: center;
+  font-weight: bold;
+}
