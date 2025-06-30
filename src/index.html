@@ -24,29 +24,43 @@
   </div>
 
   <div id="info">
-    <strong>Steuerung:</strong><br>
-    W – Vorwärts<br>
-    S – Rückwärts<br>
-    A – Seitlich links<br>
-    D – Seitlich rechts<br>
-    Q – Nach links drehen<br>
-    E – Nach rechts drehen<br><br>
-    R – Arm heben<br>
-    F – Arm senken<br>
-    T – Greifer öffnen<br>
-    G – Greifer schließen<br><br>
-    <strong>Geschwindigkeitssteuerung:</strong><br><br>
-    <label for="movementSpeed">Bewegungsgeschwindigkeit:</label><br>
-    <div class="speed-control">
-      <input type="range" id="movementSpeed" min="0.5" max="5" value="2" step="0.5">
-      <span id="movementSpeedValue">2</span>
-    </div>
+    <strong>Numerische Steuerung:</strong><br><br>
     
-    <label for="rotationSpeed">Rotationsgeschwindigkeit:</label><br>
-    <div class="speed-control">
-      <input type="range" id="rotationSpeed" min="0.1" max="2" value="0.5" step="0.1">
-      <span id="rotationSpeedValue">0.5</span>
+    <label for="xValue">X (Vorwärts/Rückwärts): -2047 bis 2047</label><br>
+    <div class="control-group">
+      <input type="range" id="xValue" min="-2047" max="2047" value="0" step="1">
+      <span id="xValueDisplay">0</span>
+      <button onclick="resetX()">Reset</button>
     </div><br>
+    
+    <label for="yValue">Y (Seitwärts): -2047 bis 2047</label><br>
+    <div class="control-group">
+      <input type="range" id="yValue" min="-2047" max="2047" value="0" step="1">
+      <span id="yValueDisplay">0</span>
+      <button onclick="resetY()">Reset</button>
+    </div><br>
+    
+    <label for="rotationValue">Rotation: -2047 bis 2047</label><br>
+    <div class="control-group">
+      <input type="range" id="rotationValue" min="-2047" max="2047" value="0" step="1">
+      <span id="rotationValueDisplay">0</span>
+      <button onclick="resetRotation()">Reset</button>
+    </div><br>
+    
+    <label for="gripperSpeed">Greifer Speed: -2047 bis 2047</label><br>
+    <div class="control-group">
+      <input type="range" id="gripperSpeed" min="-2047" max="2047" value="0" step="1">
+      <span id="gripperSpeedDisplay">0</span>
+      <button onclick="resetGripperSpeed()">Reset</button>
+    </div><br>
+    
+    <label for="armPosition">Arm Position (absolut): 0 bis 4095</label><br>
+    <div class="control-group">
+      <input type="range" id="armPosition" min="0" max="4095" value="2047" step="1">
+      <span id="armPositionDisplay">2047</span>
+    </div><br>
+    
+    <button onclick="resetAllValues()" style="background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Alle Werte zurücksetzen</button><br><br>
     
     <strong>WebSerial:</strong><br>
     <button onclick="connectSerial()" id="connectBtn">Verbinden</button>

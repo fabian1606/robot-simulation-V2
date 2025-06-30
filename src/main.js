@@ -24,15 +24,22 @@ let carX = (window.innerWidth - carWidth) / 2;
 let carY = (window.innerHeight - carHeight) / 2;
 let rotation = 0;
 
-// Separate Geschwindigkeitsvariablen
-let movementSpeed = 2; // Bewegungsgeschwindigkeit
-let rotationSpeed = 0.5; // Rotationsgeschwindigkeit
+// Neue Wertebereiche für die Steuerung
+let xValue = 0;        // Vorwärts/Rückwärts: -2047 bis 2047
+let yValue = 0;        // Seitwärts: -2047 bis 2047  
+let rotationValue = 0; // Rotation: -2047 bis 2047
+let gripperSpeed = 0;  // Greifer Geschwindigkeit: -2047 bis 2047
+let armPosition = 2047; // Arm Position: 0 bis 4095 (absolut)
 
-// Armhöhe (Steuerung des Arms)
-let armHeight = 217.883;    // 311.262 * 0.7
+// Umrechnung der Armposition in Pixelwerte
 const armMin = 14, armMax = 217.883; // 20*0.7, 311.262*0.7
+let armHeight = armMax; // Startwert auf Maximum
 let gripperOpenAmount = 0; // Öffnungsgrad des Greifers (0 = zu, 1 = maximal offen)
-let keysPressed = {}; // Merkt gedrückte Tasten
+
+// Geschwindigkeitsskalierung
+const movementSpeedScale = 0.005; // Skalierungsfaktor für Bewegung
+const rotationSpeedScale = 0.0005; // Skalierungsfaktor für Rotation
+const gripperSpeedScale = 0.0001; // Skalierungsfaktor für Greifer (angepasst für neue Wertebereiche)
 
 // Basiswerte für Arm und Handgelenk (Positionierung)
 const armBaseHeight = 217.883;       // 311.262 * 0.7
@@ -214,38 +221,17 @@ async function readSerialData() {
       serialBuffer = lines.pop() || ''; // Letzten unvollständigen Teil behalten
       
       for (let line of lines) {
-        const data = line.trim().toLowerCase();
-        // Prüfen auf Rotationsbefehl
-        if (data.startsWith('#:')) {
-          const angle = parseFloat(data.substring(2));
-          if (!isNaN(angle)) {
-            console.log('Empfangen Rotation:', angle);
-            rotation = angle;
-            updateCarPosition();
-          }
-        }
-        // Standard Bewegungsbefehle
-        else if (data && ['w','a','s','d','q','e','r','f','t','g'].includes(data)) {
-          console.log('Empfangen:', data);
-          handleSerialCommand(data);
+        const data = line.trim();
+        if (data.length > 0) {
+          parseSerialCommand(data);
         }
       }
       
-      // Auch einzelne Zeichen oder Befehle ohne Zeilenumbruch verarbeiten
-      if (serialBuffer.length > 0 && !serialBuffer.startsWith('#:')) {
-        const data = serialBuffer.trim().toLowerCase();
-        if (data.startsWith('#:')) {
-          const angle = parseFloat(data.substring(2));
-          if (!isNaN(angle)) {
-            console.log('Empfangen Rotation (ohne \\n):', angle);
-            rotation = angle*-1;
-            updateCarPosition();
-            serialBuffer = ''; // Buffer leeren nach Verarbeitung
-          }
-        }
-        else if (['w','a','s','d','q','e','r','f','t','g'].includes(data)) {
-          console.log('Empfangen (ohne \\n):', data);
-          handleSerialCommand(data);
+      // Auch einzelne Befehle ohne Zeilenumbruch verarbeiten
+      if (serialBuffer.length > 0) {
+        const data = serialBuffer.trim();
+        if (data.includes(':') || /^[A-Z]:\d+/.test(data)) {
+          parseSerialCommand(data);
           serialBuffer = ''; // Buffer leeren nach Verarbeitung
         }
       }
@@ -256,21 +242,59 @@ async function readSerialData() {
   }
 }
 
-function handleSerialCommand(command) {
-  // Kontinuierliche Steuerung: Taste aktivieren
-  keysPressed[command] = true;
+function parseSerialCommand(data) {
+  console.log('Empfangen:', data);
   
-  // Timer für diesen Befehl zurücksetzen
-  if (serialCommandTimers[command]) {
-    clearTimeout(serialCommandTimers[command]);
+  // Format: X:1234 für X-Wert, Y:-567 für Y-Wert, etc.
+  if (data.includes(':')) {
+    const [command, valueStr] = data.split(':');
+    const value = parseInt(valueStr);
+    
+    if (!isNaN(value)) {
+      switch (command.toUpperCase()) {
+        case 'X':
+          // X-Wert (Vorwärts/Rückwärts): -2047 bis 2047
+          xValue = Math.max(-2047, Math.min(2047, value));
+          updateSliderAndDisplay('xValue', 'xValueDisplay', xValue);
+          console.log('X-Wert gesetzt:', xValue);
+          break;
+        case 'Y':
+          // Y-Wert (Seitwärts): -2047 bis 2047
+          yValue = Math.max(-2047, Math.min(2047, value));
+          updateSliderAndDisplay('yValue', 'yValueDisplay', yValue);
+          console.log('Y-Wert gesetzt:', yValue);
+          break;
+        case 'R':
+          // Rotation: -2047 bis 2047
+          rotationValue = Math.max(-2047, Math.min(2047, value));
+          updateSliderAndDisplay('rotationValue', 'rotationValueDisplay', rotationValue);
+          console.log('Rotation gesetzt:', rotationValue);
+          break;
+        case 'G':
+          // Greifer Speed: -2047 bis 2047
+          gripperSpeed = Math.max(-2047, Math.min(2047, value));
+          updateSliderAndDisplay('gripperSpeed', 'gripperSpeedDisplay', gripperSpeed);
+          console.log('Greifer Speed gesetzt:', gripperSpeed);
+          break;
+        case 'A':
+          // Arm Position: 0 bis 4095
+          armPosition = Math.max(0, Math.min(4095, value));
+          updateSliderAndDisplay('armPosition', 'armPositionDisplay', armPosition);
+          console.log('Arm Position gesetzt:', armPosition);
+          break;
+        default:
+          console.log('Unbekannter Befehl:', command);
+      }
+    }
   }
+}
+
+function updateSliderAndDisplay(sliderId, displayId, value) {
+  const slider = document.getElementById(sliderId);
+  const display = document.getElementById(displayId);
   
-  // Timer setzen, um Befehl nach kurzer Zeit zu deaktivieren
-  // (falls keine neuen Befehle kommen)
-  serialCommandTimers[command] = setTimeout(() => {
-    keysPressed[command] = false;
-    delete serialCommandTimers[command];
-  }, 150); // 150ms Timeout - kann angepasst werden
+  if (slider) slider.value = value;
+  if (display) display.textContent = value;
 }
 
 async function sendSerialData(data) {
@@ -332,42 +356,31 @@ function updateCarPosition() {
 }
 
 
-// Bewegt das Auto in die gewünschte Richtung
-function moveCar(direction) {
+// Bewegt das Auto basierend auf den numerischen Werten
+function updateCarMovement() {
   const rad = degToRad(rotation);
+  
+  // Berechnung der Bewegungsgeschwindigkeit basierend auf x und y Werten
+  const forwardSpeed = xValue * movementSpeedScale; // Vorwärts/Rückwärts
+  const sideSpeed = yValue * movementSpeedScale;    // Seitwärts
+  
+  // Berechnung der Bewegungsrichtung relativ zur Roboterausrichtung
   let dx = 0, dy = 0;
-
-  switch (direction) {
-    case 'w': // vorwärts
-      dx = Math.sin(rad) * movementSpeed;
-      dy = -Math.cos(rad) * movementSpeed;
-      break;
-    case 's': // rückwärts
-      dx = -Math.sin(rad) * movementSpeed;
-      dy = Math.cos(rad) * movementSpeed;
-      break;
-    case 'a': // links seitlich (relativ zur Roboterausrichtung)
-      dx = -Math.cos(rad) * movementSpeed;
-      dy = -Math.sin(rad) * movementSpeed;
-      break;
-    case 'd': // rechts seitlich (relativ zur Roboterausrichtung)
-      dx = Math.cos(rad) * movementSpeed;
-      dy = Math.sin(rad) * movementSpeed;
-      break;
-    case 'q': // links drehen - nur Rotation
-      rotation -= rotationSpeed;
-      dx = 0;
-      dy = 0;
-      break;
-    case 'e': // rechts drehen - nur Rotation
-      rotation += rotationSpeed;
-      dx = 0;
-      dy = 0;
-      break;
-  }
-
+  
+  // Vorwärts/Rückwärts Bewegung (relativ zur Roboterausrichtung)
+  dx += Math.sin(rad) * forwardSpeed;
+  dy += -Math.cos(rad) * forwardSpeed;
+  
+  // Seitwärts Bewegung (relativ zur Roboterausrichtung)
+  dx += Math.cos(rad) * sideSpeed;
+  dy += Math.sin(rad) * sideSpeed;
+  
+  // Position aktualisieren
   carX += dx;
   carY += dy;
+  
+  // Rotation aktualisieren
+  rotation += rotationValue * rotationSpeedScale;
 
   // Begrenzung innerhalb des Fensters
   carX = Math.min(window.innerWidth - carWidth, Math.max(0, carX));
@@ -377,10 +390,25 @@ function moveCar(direction) {
   updateCarPosition();
 }
 
-// Hauptsteuerungsschleife: prüft gedrückte Tasten und aktualisiert Positionen/Animationen
+// Aktualisiert die Armposition basierend auf dem absoluten Wert
+function updateArmPosition() {
+  // Umrechnung von 0-4095 auf den Pixelbereich armMin-armMax
+  const normalizedPosition = armPosition / 4095; // 0-1
+  armHeight = armMin + (armMax - armMin) * normalizedPosition;
+  updateArm();
+}
+
+// Aktualisiert den Greifer basierend auf der Geschwindigkeit
+function updateGripperMovement() {
+  // Greifer Geschwindigkeit anwenden
+  gripperOpenAmount += gripperSpeed * gripperSpeedScale;
+  
+  // Begrenzung zwischen 0 und 1
+  gripperOpenAmount = Math.max(0, Math.min(1, gripperOpenAmount));
+}
+
+// Hauptsteuerungsschleife: arbeitet mit numerischen Werten
 function controlLoop() {
-    let changed = false;
-    
     const ballToGrab = isArmOverBall();
     
     // Ball grabbing logic
@@ -412,35 +440,11 @@ function controlLoop() {
         updateBallPosition();
     }
 
-    // Armhöhe steuern mit R und F
-    if (keysPressed['r']) {
-        const prev = armHeight;
-        armHeight = Math.max(armMin, armHeight - 0.5);
-        changed ||= (prev !== armHeight);
-    }
-    if (keysPressed['f']) {
-        const prev = armHeight;
-        armHeight = Math.min(armMax, armHeight + 0.5);
-        changed ||= (prev !== armHeight);
-    }
-    if (changed) updateArm();
-
-    // Greifer langsam öffnen/schließen mit T und G
-    if (keysPressed['t']) {
-        gripperOpenAmount += 0.02; // Geschwindigkeit des Öffnens (langsamer)
-        if (gripperOpenAmount > 1) gripperOpenAmount = 1;
-    }
-    if (keysPressed['g']) {
-        gripperOpenAmount -= 0.02; // Geschwindigkeit des Schließens (langsamer)
-        if (gripperOpenAmount < 0) gripperOpenAmount = 0;
-    }
-
-    updateArm();
-
-    // Bewegung und Rotation des Autos (inkl. Seitwärtsbewegung)
-    ['w', 's', 'a', 'd', 'q', 'e'].forEach(key => {
-        if (keysPressed[key]) moveCar(key);
-    });
+    // Neue wertbasierte Steuerung
+    updateCarMovement();        // Auto-Bewegung basierend auf xValue, yValue, rotationValue
+    updateArmPosition();        // Arm-Position basierend auf armPosition
+    updateGripperMovement();    // Greifer basierend auf gripperSpeed
+    updateArm();               // Arm-Darstellung aktualisieren
 
     requestAnimationFrame(controlLoop);
 }
@@ -454,58 +458,123 @@ for (let i = 0; i < 3; i++) {
 window.connectSerial = connectSerial;
 window.disconnectSerial = disconnectSerial;
 
-// Tastendruck-Handler: merkt gedrückte Steuerungstasten
-document.addEventListener('keydown', e => {
-  const key = e.key.toLowerCase();
-  if (['w','a','s','d','q','e','r','f','t','g'].includes(key)) {
-    keysPressed[key] = true;
-    e.preventDefault();
-    console.log('Key pressed:', key); // Debug output
-  }
-});
+// Tastatur-Steuerung ist nicht mehr aktiv - nur noch numerische Werte werden verwendet
+// Die Tastatur-Events bleiben für Kompatibilität, werden aber nicht mehr genutzt
 
-// Tastenloslassen-Handler: setzt gedrückte Tasten zurück
-document.addEventListener('keyup', e => {
-  const key = e.key.toLowerCase();
-  if (['w','a','s','d','q','e','r','f','t','g'].includes(key)) {
-    keysPressed[key] = false;
-    console.log('Key released:', key); // Debug output
-  }
-});
-
-// Geschwindigkeitssteuerung mit Slidern
-function updateSpeedControls() {
-  const movementSlider = document.getElementById('movementSpeed');
-  const rotationSlider = document.getElementById('rotationSpeed');
-  const movementSpeedValue = document.getElementById('movementSpeedValue');
-  const rotationSpeedValue = document.getElementById('rotationSpeedValue');
-
-  if (movementSlider) {
-    movementSlider.addEventListener('input', (e) => {
-      movementSpeed = parseFloat(e.target.value);
-      if (movementSpeedValue) {
-        movementSpeedValue.textContent = movementSpeed;
-      }
+// Neue numerische Steuerung mit Slidern
+function updateControls() {
+  // X-Wert (Vorwärts/Rückwärts)
+  const xSlider = document.getElementById('xValue');
+  const xDisplay = document.getElementById('xValueDisplay');
+  if (xSlider) {
+    xSlider.addEventListener('input', (e) => {
+      xValue = parseInt(e.target.value);
+      if (xDisplay) xDisplay.textContent = xValue;
     });
   }
 
+  // Y-Wert (Seitwärts)
+  const ySlider = document.getElementById('yValue');
+  const yDisplay = document.getElementById('yValueDisplay');
+  if (ySlider) {
+    ySlider.addEventListener('input', (e) => {
+      yValue = parseInt(e.target.value);
+      if (yDisplay) yDisplay.textContent = yValue;
+    });
+  }
+
+  // Rotation
+  const rotationSlider = document.getElementById('rotationValue');
+  const rotationDisplay = document.getElementById('rotationValueDisplay');
   if (rotationSlider) {
     rotationSlider.addEventListener('input', (e) => {
-      rotationSpeed = parseFloat(e.target.value);
-      if (rotationSpeedValue) {
-        rotationSpeedValue.textContent = rotationSpeed;
-      }
+      rotationValue = parseInt(e.target.value);
+      if (rotationDisplay) rotationDisplay.textContent = rotationValue;
+    });
+  }
+
+  // Greifer Speed
+  const gripperSlider = document.getElementById('gripperSpeed');
+  const gripperDisplay = document.getElementById('gripperSpeedDisplay');
+  if (gripperSlider) {
+    gripperSlider.addEventListener('input', (e) => {
+      gripperSpeed = parseInt(e.target.value);
+      if (gripperDisplay) gripperDisplay.textContent = gripperSpeed;
+    });
+  }
+
+  // Arm Position
+  const armSlider = document.getElementById('armPosition');
+  const armDisplay = document.getElementById('armPositionDisplay');
+  if (armSlider) {
+    armSlider.addEventListener('input', (e) => {
+      armPosition = parseInt(e.target.value);
+      if (armDisplay) armDisplay.textContent = armPosition;
     });
   }
 }
+
+// Reset-Funktionen für einzelne Werte
+function resetX() {
+  xValue = 0;
+  const slider = document.getElementById('xValue');
+  const display = document.getElementById('xValueDisplay');
+  if (slider) slider.value = 0;
+  if (display) display.textContent = 0;
+}
+
+function resetY() {
+  yValue = 0;
+  const slider = document.getElementById('yValue');
+  const display = document.getElementById('yValueDisplay');
+  if (slider) slider.value = 0;
+  if (display) display.textContent = 0;
+}
+
+function resetRotation() {
+  rotationValue = 0;
+  const slider = document.getElementById('rotationValue');
+  const display = document.getElementById('rotationValueDisplay');
+  if (slider) slider.value = 0;
+  if (display) display.textContent = 0;
+}
+
+function resetGripperSpeed() {
+  gripperSpeed = 0;
+  const slider = document.getElementById('gripperSpeed');
+  const display = document.getElementById('gripperSpeedDisplay');
+  if (slider) slider.value = 0;
+  if (display) display.textContent = 0;
+}
+
+function resetAllValues() {
+  resetX();
+  resetY();
+  resetRotation();
+  resetGripperSpeed();
+  
+  // Arm Position zurück zur Mitte
+  armPosition = 2047;
+  const armSlider = document.getElementById('armPosition');
+  const armDisplay = document.getElementById('armPositionDisplay');
+  if (armSlider) armSlider.value = 2047;
+  if (armDisplay) armDisplay.textContent = 2047;
+}
+
+// Globale Reset-Funktionen verfügbar machen
+window.resetX = resetX;
+window.resetY = resetY;
+window.resetRotation = resetRotation;
+window.resetGripperSpeed = resetGripperSpeed;
+window.resetAllValues = resetAllValues;
 
 // Ensure the page can receive focus for keyboard events
 document.addEventListener('DOMContentLoaded', () => {
   document.body.tabIndex = 0;
   document.body.focus();
-  console.log('Robot simulation loaded - keyboard controls ready');
+  console.log('Robot simulation loaded - numerical controls ready');
   updateSerialStatus();
-  updateSpeedControls();
+  updateControls();
 });
 
 window.addEventListener('beforeunload', () => {
