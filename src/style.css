@@ -165,22 +165,108 @@ body {
   background-color: orange;
 }
 
-/* === Speed Control Styling === */
-/* Container for each speed control group */
-.speed-control {
+/* === Control Group Styling === */
+/* Container for each control group */
+.control-group {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 5px;
   padding-top: 4px;
 }
 
-.speed-control input[type="range"] {
+.control-group input[type="range"] {
   flex: 1;
+  min-width: 150px;
 }
 
-.speed-control span {
-  min-width: 30px;
+.control-group span {
+  min-width: 50px;
   text-align: center;
   font-weight: bold;
+  color: #8CE87C;
+  background-color: rgba(0, 0, 0, 0.5);
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid #4CAF50;
+}
+
+.control-group button {
+  background-color: #FF6B35;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  min-width: 50px;
+}
+
+.control-group button:hover {
+  background-color: #E55A2B;
+}
+
+.control-group button:active {
+  background-color: #D04A1C;
+}
+
+/* Styling for range sliders */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  border-radius: 4px;
+  background: #333;
+  outline: none;
+  border: 1px solid #4CAF50;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  border: 2px solid #8CE87C;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  border: 2px solid #8CE87C;
+}
+
+/* Button styling for serial and reset buttons */
+button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin: 2px;
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+button:disabled {
+  background-color: #666;
+  cursor: not-allowed;
+}
+
+/* Labels styling */
+label {
+  color: #8CE87C;
+  font-weight: bold;
+  font-size: 13px;
+  margin-bottom: 5px;
+  display: block;
 }
