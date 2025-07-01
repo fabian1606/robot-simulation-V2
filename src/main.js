@@ -31,6 +31,10 @@ let rotationValue = 0; // Rotation: -2047 bis 2047
 let gripperSpeed = 0;  // Greifer Geschwindigkeit: -2047 bis 2047
 let armPosition = 2047; // Arm Position: 0 bis 4095 (absolut)
 
+// Outlier-Filter für Armposition
+let previousArmPositions = [2047, 2047, 2047]; // Speichert die letzten 3 Werte
+const MAX_ARM_CHANGE = 500; // Maximale erlaubte Änderung pro Schritt
+
 // Tastatursteuerung - Merkt gedrückte Tasten für Kompatibilität
 let keysPressed = {};
 
@@ -283,8 +287,9 @@ function parseSerialCommand(data) {
           console.log('Greifer Speed gesetzt:', gripperSpeed);
           break;
         case 'A':
-          // Arm Position: 0 bis 4095
-          armPosition = Math.max(0, Math.min(4095, value));
+          // Arm Position: 0 bis 4095 mit Ausreißer-Filter
+          const clampedValue = Math.max(0, Math.min(4095, value));
+          armPosition = filterArmPositionOutliers(clampedValue);
           updateSliderAndDisplay('armPosition', 'armPositionDisplay', armPosition);
           console.log('Arm Position gesetzt:', armPosition);
           break;
@@ -330,6 +335,29 @@ function updateSliderAndDisplay(sliderId, displayId, value) {
   
   if (slider) slider.value = value;
   if (display) display.textContent = value;
+}
+
+// Filtert Ausreißer bei der Armposition
+function filterArmPositionOutliers(newValue) {
+  // Prüfe ob der neue Wert ein Ausreißer ist
+  const currentValue = previousArmPositions[previousArmPositions.length - 1];
+  const change = Math.abs(newValue - currentValue);
+  
+  // Wenn die Änderung zu groß ist, ignoriere den Wert
+  if (change > MAX_ARM_CHANGE) {
+    console.log(`Ausreißer erkannt: ${newValue} (Änderung: ${change}, aktuell: ${currentValue})`);
+    return currentValue; // Behalte den aktuellen Wert bei
+  }
+  
+  // Gültigen Wert zur Historie hinzufügen
+  previousArmPositions.push(newValue);
+  
+  // Nur die letzten 3 Werte behalten
+  if (previousArmPositions.length > 3) {
+    previousArmPositions.shift();
+  }
+  
+  return newValue;
 }
 
 async function sendSerialData(data) {
