@@ -31,15 +31,18 @@ let rotationValue = 0; // Rotation: -2047 bis 2047
 let gripperSpeed = 0;  // Greifer Geschwindigkeit: -2047 bis 2047
 let armPosition = 2047; // Arm Position: 0 bis 4095 (absolut)
 
+// Tastatursteuerung - Merkt gedrückte Tasten für Kompatibilität
+let keysPressed = {};
+
 // Umrechnung der Armposition in Pixelwerte
 const armMin = 14, armMax = 217.883; // 20*0.7, 311.262*0.7
 let armHeight = armMax; // Startwert auf Maximum
 let gripperOpenAmount = 0; // Öffnungsgrad des Greifers (0 = zu, 1 = maximal offen)
 
 // Geschwindigkeitsskalierung
-const movementSpeedScale = 0.005; // Skalierungsfaktor für Bewegung
-const rotationSpeedScale = 0.0005; // Skalierungsfaktor für Rotation
-const gripperSpeedScale = 0.0001; // Skalierungsfaktor für Greifer (angepasst für neue Wertebereiche)
+const movementSpeedScale = 0.001; // Skalierungsfaktor für Bewegung (erhöht für bessere Sichtbarkeit)
+const rotationSpeedScale = 0.0005; // Skalierungsfaktor für Rotation (erhöht)
+const gripperSpeedScale = 0.000005; // Skalierungsfaktor für Greifer (stark erhöht)
 
 // Basiswerte für Arm und Handgelenk (Positionierung)
 const armBaseHeight = 217.883;       // 311.262 * 0.7
@@ -230,7 +233,10 @@ async function readSerialData() {
       // Auch einzelne Befehle ohne Zeilenumbruch verarbeiten
       if (serialBuffer.length > 0) {
         const data = serialBuffer.trim();
-        if (data.includes(':') || /^[A-Z]:\d+/.test(data)) {
+        // Prüfung erweitert für bessere Erkennung
+        if (data.includes(':') || 
+           /^[A-Za-z]:\-?\d+/.test(data) || 
+           (data.length === 1 && ['w','a','s','d','q','e','r','f','t','g'].includes(data.toLowerCase()))) {
           parseSerialCommand(data);
           serialBuffer = ''; // Buffer leeren nach Verarbeitung
         }
@@ -243,14 +249,14 @@ async function readSerialData() {
 }
 
 function parseSerialCommand(data) {
-  console.log('Empfangen:', data);
-  
   // Format: X:1234 für X-Wert, Y:-567 für Y-Wert, etc.
   if (data.includes(':')) {
-    const [command, valueStr] = data.split(':');
-    const value = parseInt(valueStr);
+    const parts = data.split(':');
+    const command = parts[0].trim();
+    const valueStr = parts[1].trim();
+    const value = parseInt(valueStr, 10);
     
-    if (!isNaN(value)) {
+    if (!isNaN(value) && command.length > 0 && valueStr.length > 0) {
       switch (command.toUpperCase()) {
         case 'X':
           // X-Wert (Vorwärts/Rückwärts): -2047 bis 2047
@@ -285,8 +291,37 @@ function parseSerialCommand(data) {
         default:
           console.log('Unbekannter Befehl:', command);
       }
+    } else {
+      console.log('Ungültiger Wert oder Befehl:', 'command:', command, 'valueStr:', valueStr, 'value:', value);
     }
   }
+  // Alte Befehle: einzelne Buchstaben (w,a,s,d,q,e,r,f,t,g)
+  else if (data.length === 1 && ['w','a','s','d','q','e','r','f','t','g'].includes(data.toLowerCase())) {
+    handleSerialKeyCommand(data.toLowerCase());
+  } else {
+    console.log('Befehl nicht erkannt:', data);
+  }
+}
+
+// Behandelt alte Serial-Befehle wie Tastendruck
+function handleSerialKeyCommand(command) {
+  console.log('Serial-Tastenbefeh empfangen:', command);
+  
+  // Timer für diesen Befehl zurücksetzen
+  if (serialCommandTimers[command]) {
+    clearTimeout(serialCommandTimers[command]);
+  }
+  
+  // Befehl wie Tastendruck behandeln
+  handleKeyPress(command);
+  keysPressed[command] = true;
+  
+  // Timer setzen, um Befehl nach kurzer Zeit zu deaktivieren
+  serialCommandTimers[command] = setTimeout(() => {
+    handleKeyRelease(command);
+    keysPressed[command] = false;
+    delete serialCommandTimers[command];
+  }, 150); // 150ms Timeout
 }
 
 function updateSliderAndDisplay(sliderId, displayId, value) {
@@ -458,8 +493,106 @@ for (let i = 0; i < 3; i++) {
 window.connectSerial = connectSerial;
 window.disconnectSerial = disconnectSerial;
 
-// Tastatur-Steuerung ist nicht mehr aktiv - nur noch numerische Werte werden verwendet
-// Die Tastatur-Events bleiben für Kompatibilität, werden aber nicht mehr genutzt
+// Tastatur-Handler: Setzen Werte auf Maximum für Kompatibilität
+document.addEventListener('keydown', e => {
+  const key = e.key.toLowerCase();
+  if (['w','a','s','d','q','e','r','f','t','g'].includes(key)) {
+    keysPressed[key] = true;
+    handleKeyPress(key);
+    e.preventDefault();
+    console.log('Key pressed:', key);
+  }
+});
+
+document.addEventListener('keyup', e => {
+  const key = e.key.toLowerCase();
+  if (['w','a','s','d','q','e','r','f','t','g'].includes(key)) {
+    keysPressed[key] = false;
+    handleKeyRelease(key);
+    console.log('Key released:', key);
+  }
+});
+
+// Behandelt Tastendruck - setzt Werte auf Maximum
+function handleKeyPress(key) {
+  switch(key) {
+    case 'w': // Vorwärts
+      xValue = 2047;
+      updateSliderAndDisplay('xValue', 'xValueDisplay', xValue);
+      break;
+    case 's': // Rückwärts
+      xValue = -2047;
+      updateSliderAndDisplay('xValue', 'xValueDisplay', xValue);
+      break;
+    case 'a': // Links seitlich
+      yValue = -2047;
+      updateSliderAndDisplay('yValue', 'yValueDisplay', yValue);
+      break;
+    case 'd': // Rechts seitlich
+      yValue = 2047;
+      updateSliderAndDisplay('yValue', 'yValueDisplay', yValue);
+      break;
+    case 'q': // Links drehen
+      rotationValue = -2047;
+      updateSliderAndDisplay('rotationValue', 'rotationValueDisplay', rotationValue);
+      break;
+    case 'e': // Rechts drehen
+      rotationValue = 2047;
+      updateSliderAndDisplay('rotationValue', 'rotationValueDisplay', rotationValue);
+      break;
+    case 'r': // Arm heben
+      armPosition = 4095;
+      updateSliderAndDisplay('armPosition', 'armPositionDisplay', armPosition);
+      break;
+    case 'f': // Arm senken
+      armPosition = 0;
+      updateSliderAndDisplay('armPosition', 'armPositionDisplay', armPosition);
+      break;
+    case 't': // Greifer öffnen
+      gripperSpeed = 2047;
+      updateSliderAndDisplay('gripperSpeed', 'gripperSpeedDisplay', gripperSpeed);
+      break;
+    case 'g': // Greifer schließen
+      gripperSpeed = -2047;
+      updateSliderAndDisplay('gripperSpeed', 'gripperSpeedDisplay', gripperSpeed);
+      break;
+  }
+}
+
+// Behandelt Tastenloslassen - setzt bewegungsrelevante Werte auf 0
+function handleKeyRelease(key) {
+  switch(key) {
+    case 'w': // Vorwärts
+    case 's': // Rückwärts
+      if ((key === 'w' && xValue === 2047) || (key === 's' && xValue === -2047)) {
+        xValue = 0;
+        updateSliderAndDisplay('xValue', 'xValueDisplay', xValue);
+      }
+      break;
+    case 'a': // Links seitlich
+    case 'd': // Rechts seitlich
+      if ((key === 'a' && yValue === -2047) || (key === 'd' && yValue === 2047)) {
+        yValue = 0;
+        updateSliderAndDisplay('yValue', 'yValueDisplay', yValue);
+      }
+      break;
+    case 'q': // Links drehen
+    case 'e': // Rechts drehen
+      if ((key === 'q' && rotationValue === -2047) || (key === 'e' && rotationValue === 2047)) {
+        rotationValue = 0;
+        updateSliderAndDisplay('rotationValue', 'rotationValueDisplay', rotationValue);
+      }
+      break;
+    case 't': // Greifer öffnen
+    case 'g': // Greifer schließen
+      if ((key === 't' && gripperSpeed === 2047) || (key === 'g' && gripperSpeed === -2047)) {
+        gripperSpeed = 0;
+        updateSliderAndDisplay('gripperSpeed', 'gripperSpeedDisplay', gripperSpeed);
+      }
+      break;
+    // r und f (Arm) bleiben auf ihrer Position
+  }
+}
 
 // Neue numerische Steuerung mit Slidern
 function updateControls() {
