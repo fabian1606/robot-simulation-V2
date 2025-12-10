@@ -115,6 +115,7 @@ function updateBallPosition() {
     }
 }
 
+
 // WebSerial-Funktionen
 async function connectSerial() {
   try {
